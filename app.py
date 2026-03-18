@@ -22,11 +22,7 @@ app.add_middleware(
 )
 
 # Load model directly from HuggingFace
-ner = pipeline(
-    "ner",
-    model="Babelscape/wikineural-multilingual-ner",
-    aggregation_strategy="simple"
-)
+ner = load_model('svm_ner_model.plk')
 
 @app.get("/")
 def home():
