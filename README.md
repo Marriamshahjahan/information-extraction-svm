@@ -12,6 +12,7 @@ A hybrid Information Extraction (IE) system that combines Regular Expressions (R
 Language: Python
 Techniques: NLP, Regex, SVM
 
+```bash
 .
 ├── app.py                  # Main application (Hugging Face / Flask app)
 ├── requirements.txt        # Dependencies
@@ -46,3 +47,8 @@ Combine results into structured format
 <p align="center">
   <img src="output.png" width="700"/>
 </p>
+
+<p align="center">
+  <img src="output1.png" width="700"/>
+</p>
+
