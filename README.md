@@ -1,17 +1,27 @@
-🧠 Information Extraction using NLP (SVM + Regex)
+# 🧠 Information Extraction using NLP (SVM + Regex)
 
-A hybrid Information Extraction (IE) system that combines Regular Expressions (Regex) and a Support Vector Machine (SVM) model to extract structured data from unstructured text.
+[![Hugging Face](https://img.shields.io/badge/🤗%20Live%20Demo-Spaces-yellow)](https://huggingface.co/spaces/marriam-003/information-extraction)
 
-🚀 Features
-🔍 Extracts entities from raw text
-⚡ Fast pattern matching using Regex
-🧠 Machine learning-based extraction using SVM
-🔗 Hybrid pipeline (Rule-based + ML)
-📄 Easy to extend and customize
-🛠️ Tech Stack
-Language: Python
-Techniques: NLP, Regex, SVM
+A hybrid **Information Extraction (IE)** system that combines **Regular Expressions (Regex)** and a **Support Vector Machine (SVM)** model to extract structured data from unstructured text.
 
+---
+
+## 🚀 Features
+- 🔍 Extracts entities from raw text  
+- ⚡ Fast pattern matching using Regex  
+- 🧠 Machine learning-based extraction using SVM  
+- 🔗 Hybrid pipeline (Rule-based + ML)  
+- 📄 Easy to extend and customize  
+
+---
+
+## 🛠️ Tech Stack
+- **Language:** Python  
+- **Techniques:** NLP, Regex, SVM  
+
+---
+
+## 📂 Project Structure
 ```bash
 .
 ├── app.py                  # Main application (Hugging Face / Flask app)
@@ -31,24 +41,12 @@ Techniques: NLP, Regex, SVM
 ├── .gitattributes          # Git configuration
 
 └── README.md               # Project documentation
-
-⚙️ How It Works
-Preprocessing
-Clean and tokenize text
-Regex Extraction
-Extract structured patterns (dates, emails, phone numbers)
-SVM Model
-Classify and extract contextual entities
-Final Output
-Combine results into structured format
-
-## 📸 Output Screenshot
+```
 
 <p align="center">
-  <img src="output.png" width="700"/>
+  <img src="output.png" alt="Output Screenshot" width="700"/>
 </p>
 
 <p align="center">
-  <img src="output1.png" width="700"/>
+  <img src="output1.png" alt="Output Screenshot" width="700"/>
 </p>
-
