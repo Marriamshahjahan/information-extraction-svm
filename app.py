@@ -21,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load model directly from HuggingFace
 ner = load_model('svm_ner_model.plk')
 
 @app.get("/")
