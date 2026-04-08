@@ -8,7 +8,6 @@ import torch
 
 warnings.filterwarnings("ignore")
 
-# Prevent CPU overload in HuggingFace
 torch.set_num_threads(1)
 
 app = FastAPI()
@@ -32,42 +31,85 @@ def extract_entities(text):
     results = ner(text)
     entities = defaultdict(set)
 
-    label_map = {
-        "PER": "Person",
-        "ORG": "Organization",
-        "LOC": "Location"
-    }
-
     for r in results:
-        if r["entity_group"] in label_map:
-            label = label_map[r["entity_group"]]
-            word = text[r["start"]:r["end"]].strip()
-            entities[label].add(word)
 
-    # Detect dates
-    dates = re.findall(
-        r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s\d{1,2}\s\d{4}\b',
+        label = r.get("entity_group", "").upper()
+        word = r.get("word", "").replace("##", "").strip()
+
+        if not word:
+            continue
+
+        if "PER" in label:
+            entities["Person"].add(word)
+
+        elif "ORG" in label:
+            entities["Organization"].add(word)
+
+        elif "LOC" in label:
+            entities["Location"].add(word)
+
+    # ─────────────────────
+    # REGEX (EXTRA ENTITIES)
+    # ─────────────────────
+
+    # TEXT DATE (March 15, 2024)
+    text_dates = re.findall(
+        r'\b(?:January|February|March|April|May|June|July|August|'
+        r'September|October|November|December)\s\d{1,2},?\s\d{4}\b',
         text
     )
-
-    for d in dates:
+    
+    # SLASH DATE (15/03/2024 or 03/15/2024)
+    slash_dates = re.findall(
+        r'\b\d{1,2}/\d{1,2}/\d{2,4}\b',
+        text
+    )
+    
+    # DASH DATE (2024-03-15 or 15-03-2024)
+    dash_dates = re.findall(
+        r'\b\d{1,4}-\d{1,2}-\d{1,4}\b',
+        text
+    )
+    
+    # SHORT TEXT DATE (15 Mar 2024)
+    short_dates = re.findall(
+        r'\b\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{4}\b',
+        text
+    )
+    
+    for d in text_dates + slash_dates + dash_dates + short_dates:
         entities["Date"].add(d)
 
-    # Detect money
+    # Money
     money = re.findall(
-        r'[$₹]\s?\d+(?:\.\d+)?\s?(?:million|billion|lakh|crore)?',
+        r'[$₹€]\s?\d+(?:\.\d+)?\s?(?:million|billion|lakh|crore)?',
         text
     )
-
     for m in money:
         entities["Money"].add(m)
 
-    # Detect percentages
-    perc = re.findall(r'\b\d+%', text)
+    # Time (12-hour + 24-hour formats)
+    times = re.findall(
+        r'\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s?[APap][Mm])?\b|\b(?:1[0-2]|0?[1-9])\s?[APap][Mm]\b',
+        text
+    )
 
+    for t in times:
+        entities["Time"].add(t)
+
+    days = re.findall(
+        r'\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b',
+        text
+    )
+    
+    for d in days:
+        entities["Day"].add(d)
+    
+    #  Percentage
+    perc = re.findall(r'\b\d+%', text)
     for p in perc:
         entities["Percentage"].add(p)
-
+        
     output = ""
 
     for label, words in entities.items():
