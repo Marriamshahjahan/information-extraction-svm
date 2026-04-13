@@ -1,17 +1,25 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline
-from collections import defaultdict
-import re
-import warnings
-import torch
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
+from collections import defaultdict
+import warnings
+import os
+import re
+import pickle
+
+# ─────────────────────────────
+# SETUP
+# ─────────────────────────────
 warnings.filterwarnings("ignore")
 
-torch.set_num_threads(1)
-
 app = FastAPI()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# ─────────────────────────────
+# CORS
+# ─────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,116 +28,106 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ner = load_model('svm_ner_model.plk')
+# ─────────────────────────────
+# STATIC FILES
+# ─────────────────────────────
+static_path = os.path.join(BASE_DIR, "static")
+if os.path.exists(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
 
-@app.get("/")
+# ─────────────────────────────
+# LOAD MODEL (SVM + VECTORIZER)
+# ─────────────────────────────
+try:
+    with open(os.path.join(BASE_DIR, "svm_ner_model.pkl"), "rb") as f:
+        model = pickle.load(f)
+
+    with open(os.path.join(BASE_DIR, "vectorizer.pkl"), "rb") as f:
+        vectorizer = pickle.load(f)
+
+    print("Model and vectorizer loaded successfully")
+
+except Exception as e:
+    model = None
+    vectorizer = None
+    print("Model load failed:", e)
+
+# ─────────────────────────────
+# HOME ROUTE
+# ─────────────────────────────
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {"message": "News Entity Extraction API running"}
+    file_path = os.path.join(BASE_DIR, "templates", "index.html")
 
+    if not os.path.exists(file_path):
+        return "<h2>index.html not found</h2>"
+
+    with open(file_path, encoding="utf-8") as f:
+        return f.read()
+
+# ─────────────────────────────
+# ENTITY EXTRACTION
+# ─────────────────────────────
 def extract_entities(text):
 
-    results = ner(text)
     entities = defaultdict(set)
 
-    for r in results:
+    # ───── SVM MODEL ─────
+    if model and vectorizer:
+        try:
+            # Transform text → numeric features
+            X = vectorizer.transform([text])
 
-        label = r.get("entity_group", "").upper()
-        word = r.get("word", "").replace("##", "").strip()
+            # Predict
+            prediction = model.predict(X)
 
-        if not word:
-            continue
+            # Store result
+            for pred in prediction:
+                entities["Prediction"].add(str(pred))
 
-        if "PER" in label:
-            entities["Person"].add(word)
+        except Exception as e:
+            print("Model error:", e)
 
-        elif "ORG" in label:
-            entities["Organization"].add(word)
+    # ───── REGEX ─────
 
-        elif "LOC" in label:
-            entities["Location"].add(word)
-
-    # ─────────────────────
-    # REGEX (EXTRA ENTITIES)
-    # ─────────────────────
-
-    # TEXT DATE (March 15, 2024)
-    text_dates = re.findall(
-        r'\b(?:January|February|March|April|May|June|July|August|'
-        r'September|October|November|December)\s\d{1,2},?\s\d{4}\b',
-        text
-    )
-    
-    # SLASH DATE (15/03/2024 or 03/15/2024)
-    slash_dates = re.findall(
+    # Dates
+    patterns = [
         r'\b\d{1,2}/\d{1,2}/\d{2,4}\b',
-        text
-    )
-    
-    # DASH DATE (2024-03-15 or 15-03-2024)
-    dash_dates = re.findall(
         r'\b\d{1,4}-\d{1,2}-\d{1,4}\b',
-        text
-    )
-    
-    # SHORT TEXT DATE (15 Mar 2024)
-    short_dates = re.findall(
-        r'\b\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{4}\b',
-        text
-    )
-    
-    for d in text_dates + slash_dates + dash_dates + short_dates:
-        entities["Date"].add(d)
+        r'\b\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{4}\b'
+    ]
+    for p in patterns:
+        for match in re.findall(p, text):
+            entities["Date"].add(match)
 
     # Money
-    money = re.findall(
-        r'[$₹€]\s?\d+(?:\.\d+)?\s?(?:million|billion|lakh|crore)?',
-        text
-    )
-    for m in money:
+    for m in re.findall(r'[$₹€]\s?\d+(?:,\d{3})*(?:\.\d+)?', text):
         entities["Money"].add(m)
 
-    # Time (12-hour + 24-hour formats)
-    times = re.findall(
-        r'\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s?[APap][Mm])?\b|\b(?:1[0-2]|0?[1-9])\s?[APap][Mm]\b',
-        text
-    )
-
-    for t in times:
+    # Time
+    for t in re.findall(r'\b(?:[01]?\d|2[0-3]):[0-5]\d\b', text):
         entities["Time"].add(t)
 
-    days = re.findall(
-        r'\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b',
-        text
-    )
-    
-    for d in days:
-        entities["Day"].add(d)
-    
-    #  Percentage
-    perc = re.findall(r'\b\d+%', text)
-    for p in perc:
+    # Percentage
+    for p in re.findall(r'\b\d+(?:\.\d+)?%', text):
         entities["Percentage"].add(p)
-        
-    output = ""
 
-    for label, words in entities.items():
-        if words:
-            output += f"{label}:\n"
-            for w in sorted(words):
-                output += f"- {w}\n"
-            output += "\n"
+    # Email
+    for e in re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text):
+        entities["Email"].add(e)
 
-    return output if output else "No entities found."
+    # ───── RETURN JSON ─────
+    return {k: sorted(list(v)) for k, v in entities.items()}
 
-
+# ─────────────────────────────
+# API ROUTE
+# ─────────────────────────────
 @app.post("/extract")
 def extract(data: dict):
 
     text = data.get("text", "").strip()
 
     if not text:
-        return {"result": "Please provide some text."}
+        return {"entities": {}}
 
-    result = extract_entities(text)
-
-    return {"result": result}
+    return {"entities": extract_entities(text)}
